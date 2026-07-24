@@ -66,6 +66,65 @@ Attributable to the 2026-07-24 fixes (one-shot buy scan, injected-once helpers, 
 round-trip). Roughly a 7x improvement over the previous campaign at comparable turn counts, which
 is what makes a full game viable in a single sitting.
 
+## F5 — Unit spam is choking the economy (t300)
+
+Unit count: 11 (t150) -> 16 (t200) -> 22 (t250) -> **35 (t300)**, in a *defense-only* game with
+zero war declarations all run.
+
+Cause is the known "caps must be applied to the FINAL list" defect, still live in
+`set_production_science`:
+
+```python
+ordered  = [w for w in want if w in opts]
+ordered += [o for o in opts if o not in ordered and o != "UNIT_SETTLER"]   # <- re-adds everything
+```
+
+Only `UNIT_SETTLER` is filtered from the catch-all. Once a city has built everything on the
+priority list, it falls through to whatever remains — which is mostly military units. Fourteen
+cities doing that produces 35 units nobody asked for.
+
+**Consequence, and this is the real damage: no purchase has succeeded since t223** — 77 turns.
+Gold sits at 4-8 and never again reaches the 300 buy threshold, because unit maintenance consumes
+the entire surplus. The gold lever is effectively dead for the rest of the game.
+
+This is a slow-motion replay of the campaign-#2 economy failure ("Gold 0 -> Civ 6 auto-disbands
+units; the army fell 22->7 AT PEACE"). We have not started auto-disbanding, because unit count is
+still *rising*, but the treasury is choked and cannot fund the science buildings from F1.
+
+**Fix for the rebuild:**
+- apply caps to the FINAL ordered list, never to a pre-catch-all copy
+- hard cap military units as a function of city count (defense-only needs ~1/city, not 2.5)
+- suspend unit production below a gold-income floor
+- treat "no successful purchase in N turns while gold < threshold" as an escalation trigger —
+  it is the early, survivable warning that F2's death spiral is approaching
+
+## F6 — "Cheapest fallback" is still not goal-directed (invalidates part of the 2026-07-24 fix)
+
+Research picks t223-t294:
+
+```
+METAL_CASTING, CASTLES, SIEGE_TACTICS, CARTOGRAPHY, SQUARE_RIGGING,
+MASS_PRODUCTION, BANKING, PRINTING, INDUSTRIALIZATION, STEAM_POWER,
+ELECTRICITY, SCIENTIFIC_THEORY
+```
+
+CASTLES, SIEGE_TACTICS, CARTOGRAPHY and SQUARE_RIGGING are militarily/naval oriented and are not
+on the path to `TECH_ROCKETRY`. The tree is wandering.
+
+This morning's fix replaced `options[0]` (arbitrary engine order) with cheapest-available, which
+was a genuine improvement — but **cheapest is not the same as goal-directed.** When `RESEARCH_QUEUE`
+offers nothing currently researchable, "cheapest" happily buys a detour.
+
+**Fix for the rebuild — this is the single highest-value research change:**
+compute the actual prerequisite chain to the victory techs from `GameInfo.TechnologyPrereqs`
+(`ROCKETRY` -> `SATELLITES` -> `NUCLEAR_FISSION` / `NANOTECHNOLOGY` / `ROBOTICS`) and always
+research the next unresearched tech *on that path*. Fall back to cheapest only when the path is
+complete. The prereq table is already known to be authoritative and ruleset-specific — the
+Scythia campaign found `HORSEBACK_RIDING` requires `ARCHERY` in this build, contradicting the wiki.
+
+Estimated cost of the wander: roughly 4 detour techs, plausibly 25-40 turns of delay to the
+spaceport in a game where max_turns is 500 and we reached SCIENTIFIC_THEORY only at t294.
+
 ---
 
 ## Why not fixed now
