@@ -1,0 +1,36 @@
+# --- Large / regenerated runtime artifacts -----------------------------------
+# tuner_frames.log is the raw tuner frame capture: it hit 10 MB in one session
+# and rotates to .1. Never versioned.
+tuner_frames.log
+tuner_frames.log.*
+*.log
+*.stdout
+*.err
+
+# Bridge scratch — regenerated every run
+bridge_files/
+__pycache__/
+*.pyc
+
+# --- Game data ---------------------------------------------------------------
+# Saves are ~1 MB each and land in Documents, not here, but guard anyway.
+*.Civ6Save
+
+# --- Local state -------------------------------------------------------------
+# Runtime policy state (queue positions, blacklists, settle targets). Machine
+# and game specific — a checked-in copy would fight the live one.
+civ_policy_state.json
+
+# Timestamped local backups
+backups/
+
+# --- Two-tier brain ----------------------------------------------------------
+# doctrine.json IS versioned on purpose: it is the control channel. Editing it
+# on GitHub mobile and committing is how strategy reaches the runner.
+# escalation.json and decisions.jsonl are runner output, not input.
+bridge_files/escalation.json
+decisions.jsonl
+
+# --- OS ----------------------------------------------------------------------
+Thumbs.db
+desktop.ini
