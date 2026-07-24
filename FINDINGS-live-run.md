@@ -125,6 +125,69 @@ Scythia campaign found `HORSEBACK_RIDING` requires `ARCHERY` in this build, cont
 Estimated cost of the wander: roughly 4 detour techs, plausibly 25-40 turns of delay to the
 spaceport in a game where max_turns is 500 and we reached SCIENTIFIC_THEORY only at t294.
 
+## F7 — THE DECISIVE BUG: F5 and F6 compound to block the victory condition
+
+**This is the most important finding of the run, and it corrects F6's pessimism.**
+
+The tech tree did NOT fail to arrive. Verified from the log:
+
+```
+t355: research -> TECH_ROCKETRY        <- unlocks DISTRICT_SPACEPORT + Earth Satellite
+t366: research -> TECH_COMPUTERS
+t377: research -> TECH_SATELLITES      <- unlocks Moon Landing
+t388: research -> TECH_ROBOTICS        <- unlocks Mars Hydroponics
+```
+
+We have held Rocketry since **t355**. At t400 — 45 turns later — `space_check()` has still never
+once returned a buildable project, and no Spaceport exists.
+
+### Why
+
+`DISTRICT_SPACEPORT` is in `BUILD_PRIORITY`, and with the five projects above it unbuildable it
+is effectively the top buildable entry. So it *should* be queued. But it is only ever considered
+inside:
+
+```python
+for city in me["cities"]:
+    if not city.get("production"):        # <- ONLY when a city falls idle
+        set_production_science(city, ...)
+```
+
+And per F5, **cities never fall idle** — the catch-all keeps them building military units
+forever. 53 units and climbing. So the branch that would queue the Spaceport is never reached.
+
+Meanwhile the space-race override added on 2026-07-24 pre-empts current production, but it only
+tests `SPACE_PROJECTS` — **it does not test `DISTRICT_SPACEPORT`.** So the one thing that would
+break the deadlock is outside the one mechanism designed to force the endgame.
+
+Three individually survivable defects interlock into a hard block:
+
+1. F5 catch-all -> cities never idle
+2. production only re-tasked when idle -> Spaceport never queued
+3. space override covers projects but not the Spaceport -> nothing forces it
+
+**Net effect: the victory condition is unreachable despite holding the required techs for 45+
+turns.** Structurally the same class of bug as this morning's `GameInfo.Projects()` omission — the
+capability exists, the discovery path does not.
+
+### Fix for the rebuild
+
+- the space-race override must include `DISTRICT_SPACEPORT` (and its prerequisites), not just
+  the projects
+- production must be re-evaluated on a cadence, not only on idle. A city building a Musketman is
+  not a reason to skip the spaceport
+- add a victory-condition watchdog: *"we hold the tech for a victory building/project and have
+  not started it within N turns"* -> escalate to Tier A. This single trigger would have caught it
+  at t365 instead of never
+
+### Correction to F6
+
+F6 claimed the research wander would cost the game. That was wrong: despite the detours, every
+required tech arrived with ~145 turns to spare. **The tech path was not the blocker — production
+was.** F6's prereq-planner fix is still worth doing, but it is an optimisation, not the fix.
+Recorded here rather than edited above, because being able to see a wrong call and its correction
+is more useful than a tidy document.
+
 ---
 
 ## Why not fixed now
