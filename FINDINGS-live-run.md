@@ -125,7 +125,12 @@ Scythia campaign found `HORSEBACK_RIDING` requires `ARCHERY` in this build, cont
 Estimated cost of the wander: roughly 4 detour techs, plausibly 25-40 turns of delay to the
 spaceport in a game where max_turns is 500 and we reached SCIENTIFIC_THEORY only at t294.
 
-## F7 — THE DECISIVE BUG: F5 and F6 compound to block the victory condition
+## F7 — RETRACTED. See F8. Its central factual claim was false.
+
+> **F7 claimed no Spaceport existed at t400 and that the victory condition was structurally
+> unreachable. That was wrong.** Five cities queued `DISTRICT_SPACEPORT` at t393, t396, t400,
+> t408 and t411 — before and during the very check that concluded none existed. The analysis
+> error is documented in F8; the original text is kept below unedited so the mistake is legible.
 
 **This is the most important finding of the run, and it corrects F6's pessimism.**
 
@@ -187,6 +192,74 @@ required tech arrived with ~145 turns to spare. **The tech path was not the bloc
 was.** F6's prereq-planner fix is still worth doing, but it is an optimisation, not the fix.
 Recorded here rather than edited above, because being able to see a wrong call and its correction
 is more useful than a tidy document.
+
+## F8 — R6 CLOSED POSITIVE: space projects DO queue. And an analyst error worth keeping.
+
+### The result
+
+```
+t355: TECH_ROCKETRY researched
+t393: Nuremberg builds DISTRICT_SPACEPORT      (also t396, t400, t408, t411 - five cities)
+t467: Aachen builds PROJECT_LAUNCH_EARTH_SATELLITE
+t467: *** SPACE RACE *** city 65536 -> PROJECT_LAUNCH_EARTH_SATELLITE
+```
+
+**R6 — the single biggest unknown in `PLAN.md` — is closed, positively.** The whole chain works
+end to end:
+
+1. `BUILDABLE_PROJECTS_LUA` (the `GameInfo.Projects()` enumeration added 2026-07-24) surfaces
+   projects
+2. `Bridge_SpaceCheck` detects them across all cities in one round trip
+3. the space-race override pre-empts current production
+4. `prod_hash != 0` confirms it stuck — verified by state change, not by the ack
+
+This was the one link in the victory chain that could not be proven until a Spaceport existed.
+It is now proven in a live game. **The rebuild does not need to solve the victory path — it
+already works.**
+
+### The analyst error
+
+At t400 I ran:
+
+```bash
+grep -ciE "rocketry|spaceport|SPACE RACE" win_science.log   # returned 11
+```
+
+I then wrote F7 asserting no Spaceport existed. **The command had already returned 11 matches.**
+I had conflated it with a separate `grep -c "SPACE RACE"` that returned 0, treated the absence of
+*projects* as the absence of *Spaceports*, and reported a structural block that was not there.
+
+The project's core discipline — **verify by state change, never trust an assumption** — exists
+precisely to prevent this, and it applies to analysis exactly as it applies to code. A conflated
+grep is the analytical form of trusting `ok=true`. The correct check was one command:
+
+```bash
+grep -c "DISTRICT_SPACEPORT" win_science.log      # the actual question
+```
+
+Kept rather than quietly deleted, because a retracted finding with its cause is worth more than a
+document that only ever looks correct.
+
+### What was actually true
+
+F5's mechanism was real but its severity was overstated: cities being busy with units **delayed**
+the Spaceport ~38 turns after Rocketry (t355 -> t393), it did not prevent it. "Late", not "never".
+
+The genuine remaining defect is narrower than F7 claimed, and still worth fixing:
+
+- the space-race override tests `SPACE_PROJECTS` but **not `DISTRICT_SPACEPORT`**, so the
+  Spaceport still depends on a city happening to fall idle. That cost ~38 turns here and in a
+  tighter game would cost the win.
+- **victory-condition watchdog** remains the right general fix: *"we hold the tech for a victory
+  building/project and have not started it within N turns"* -> escalate. It would have fired at
+  ~t365 and saved those turns.
+
+### Outcome for this game
+
+Earth Satellite queued at t467 with ~33 turns to the 500-turn ceiling. The remaining four
+projects (Moon Landing + three Mars components) cannot all complete in that window, so this game
+still ends without a victory — but it ends having **proven the victory machinery works**, which
+is worth considerably more to the rebuild than a win would have been.
 
 ---
 
