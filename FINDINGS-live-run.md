@@ -261,6 +261,47 @@ projects (Moon Landing + three Mars components) cannot all complete in that wind
 still ends without a victory — but it ends having **proven the victory machinery works**, which
 is worth considerably more to the rebuild than a win would have been.
 
+## F9 — Self-inflicted: the space-race override has no "already building it" guard
+
+Introduced 2026-07-24 in the same session that added the override. It fires **every turn** for a
+project that is already in production:
+
+```
+t467: *** SPACE RACE *** city 65536 -> PROJECT_LAUNCH_EARTH_SATELLITE
+t468: *** SPACE RACE *** city 65536 -> PROJECT_LAUNCH_EARTH_SATELLITE
+t469: *** SPACE RACE *** city 65536 -> PROJECT_LAUNCH_EARTH_SATELLITE
+```
+
+Cause: the first draft of the override checked `if city.get("production") == item: continue`.
+When it was rewritten to use the cheaper `Bridge_SpaceCheck` (one round trip instead of a full
+`buildable()` per city), **that guard was dropped and not replaced.** An optimisation silently
+removed a correctness check — exactly the kind of regression the project's verify-by-state-change
+discipline is meant to catch, and it went in unverified because no Spaceport existed at the time
+to exercise the path.
+
+`CanStartOperation` keeps returning true for a project already under construction, so
+`space_check()` re-offers it forever and the runner re-issues `set_production` with
+`PARAM_INSERT_MODE = VALUE_EXCLUSIVE` every turn.
+
+**Severity: unresolved.** `VALUE_EXCLUSIVE` replaces the build queue. Civ 6 normally preserves
+partial progress when switching production, so re-selecting the item in progress is *probably* a
+no-op — but "probably" is not this project's standard, and if it does reset accumulated
+production then Earth Satellite can never complete, because the reset recurs every turn. This
+game has ~30 turns left, so the completion (or its absence) will answer it.
+
+**Fix:** skip any city whose current production already equals the target.
+
+```python
+for city_id, item in space_check():
+    if current_production_of(city_id) == item:
+        continue        # already building it - re-issuing is at best noise
+```
+
+**Generalised lesson for the rebuild:** the two-tier design pre-empts production on a cadence.
+Every pre-emption path needs an idempotence guard — "is the thing I am about to command already
+true?" — or it will thrash. This is the same failure family as re-issuing a command and trusting
+the ack: doing work that looks successful and may accomplish nothing.
+
 ---
 
 ## Why not fixed now
