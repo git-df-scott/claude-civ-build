@@ -160,6 +160,119 @@ gold wherever legal.
 
 ---
 
+## 9b. From the PotatoMcWhiskey transcript (R8 CLOSED)
+
+Source: *"The only guide to Settling in Civ 6 a new player will ever need — Ancient Era"*
+(52:33, 1.5M views). Full transcript extracted 2026-07-24.
+
+**Filter applied:** the video is Rise & Fall era — it discusses Governors (Pingala, Magnus) and
+Loyalty at length. **Those do not exist in our base-game ruleset and are excluded below.** Note
+this costs us the Magnus +50% chop bonus, so chopping is worth proportionally less to us than to
+him, though still positive.
+
+### 9b.1 The tile-profit model — replaces our settle scoring
+
+This is the single most valuable idea in the video and our current scorer gets it wrong.
+
+> **Every citizen eats 2 food. A tile's value is its yield MINUS 2.**
+
+| Tile | Raw yield | Profit | Verdict |
+|---|---|---|---|
+| 1 food | 1 | **−1** | actively harmful |
+| 2 food | 2 | **0** | break-even, worthless |
+| 3 food | 3 | **+1** | fine |
+| 4 food | 4 | **+2** | **twice as good as the 3-food tile** |
+| 2 food 2 prod | 4 | **+2** | *"the perfect profit tile"* for the ancient era |
+
+The consequence is non-obvious and important: a 4-yield tile is **twice** as good as a 3-yield
+tile, not 33% better. Our `Bridge_FoundSpot` scores `2*food + prod + 3*fresh − dist`, which is
+linear in raw yield and therefore systematically undervalues high tiles and overvalues mediocre
+ones.
+
+**Action:** rescore as `sum(max(0, yield − 2))` across the workable ring, not raw yields.
+
+### 9b.2 Era-dependent yield weighting
+
+> Ancient + Classical: **food > production.** Medieval onward: **production > food.**
+
+Our scorer weights food `2x` at all times. It should flip around the Medieval era. This dovetails
+with §2 — the late game is a production race.
+
+### 9b.3 Settling rules (executable)
+
+- **Settle by turn 3; turn 4 at the absolute latest.** Never move the settler more than 2 turns
+  looking for a better spot. Our runner has no settle deadline at all.
+- **Settling ON a resource keeps the resource** and upgrades the city centre from the default
+  2f/1p to e.g. 3f/1p. **Woods are destroyed by settling; resources are not.**
+- City centre always yields 2f/1p regardless of terrain **unless** the tile has a resource or
+  bonus yield — so settling on a bonus resource is free value.
+- Growth maths: a city netting 4 food grows in 8 turns; **5 food grows in 5 turns.** Small food
+  deltas are large growth deltas early.
+- **Minimum 3 tiles between cities** (engine rule). He settles ~4 apart so the new city does not
+  steal the capital's worked tiles — adjacent tiles are gobbled on founding.
+- The engine's **settler lens** ranks spots (brighter green = better). Worth probing: the engine
+  may already expose a recommendation we can read instead of scoring by hand.
+
+### 9b.4 Opening build order
+
+- **Scout → Slinger** is the recommended safe opener; **double Scout** is the greedy standard.
+- **Explicitly do NOT open with Monument or Builder** — called "advanced plays".
+- Warrior 40 production, Slinger 35.
+- **Settlers over wonders**: *"between building settlers and building other stuff it's almost
+  always the correct play to build more settlers."*
+
+### 9b.5 Mines are the production engine
+
+> *"The most important thing you do with your production is building mines."*
+
+Mines go on any hill (all hill variants) and scale with tech as the tree unlocks mine bonuses.
+Our runner builds Builders and then **never directs them** — no mine logic exists at all. Given
+§2 (science victory is a production race), this is a large miss.
+
+### 9b.6 Chopping
+
+> *"If you have the option to chop a tile it is almost always the correct choice."*
+
+Chop yield scales with science/culture accumulated, so **later chops are worth more**. Confirms
+R5 is worth fixing — our `Bridge_Chop` returns 0 every turn and has never been observed to work.
+
+### 9b.7 Policy cards (base-game relevant)
+
+| Card | Effect | When |
+|---|---|---|
+| **Colonization** (Early Empire) | **+50% production toward Settlers** | the expansion fix |
+| God King | +1 gold/turn, enables early Pantheon | opening |
+| Discipline | big bonus vs barbarians | only if barbs on — **ours are off, skip** |
+| Urban Planning | +1 production | once faith is covered |
+| Monument to the Gods | +15% production toward ancient/classical wonders | wonder play |
+| Conscription | cheaper unit maintenance | when broke (see F5) |
+
+**Colonization is the direct fix for our expansion problem** (5 cities at t100 vs a 7–12 target).
+
+### 9b.8 Cheap boosts we can script
+
+- kill 3 barbarians → **Bronze Working** (n/a, barbs off)
+- kill a Slinger → **Archery**
+- improve 3 tiles → **Craftsmanship**
+- found a Pantheon → **Mysticism**
+- meet another continent → **Foreign Trade**
+- farm a resource → **Irrigation**
+- mine a resource → **The Wheel**
+- 6 total population → **State Workforce**
+
+A boost is worth ~1/3–40% of the item's cost. **Technique: deliberately delay finishing a
+tech/civic until its boost lands.** We do none of this.
+
+### 9b.9 Other mechanics we ignore
+
+- **Amenities:** 1 amenity feeds 2 population; each luxury gives 1 amenity to up to 4 cities.
+  +3 amenities = **+10% yields**, +5 = **+20% yields**. Empire-wide multiplier, entirely unused.
+- **Housing:** fresh water 5, palace +1, farms +0.5 each. Caps growth when hit.
+- **Builder charges should roughly equal population** — every tile wants improving.
+- Early gold is best spent **buying high-value tiles**, not units.
+
+---
+
 ## 10. Sources
 
 - [Civ 6 science victory tips — GameRant](https://gamerant.com/civ-6-tips-science-victory/)
